@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LinkedIn Profile Visitor",
-  "version": "1.0",
+  "version": "0.2",
   "description": "Visits LinkedIn profiles from a URL list with human-like browsing behavior",
   "permissions": [
     "tabs",
