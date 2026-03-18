@@ -180,6 +180,22 @@ chrome.runtime.onMessage.addListener((msg) => {
     startBtn.classList.remove('hidden');
     startBtn.disabled = parsedUrls.length === 0;
 
+  } else if (msg.type === 'watchdog_fail') {
+    stopBtn.classList.add('hidden');
+    startBtn.classList.remove('hidden');
+    startBtn.disabled = parsedUrls.length === 0;
+    statusSection.classList.remove('hidden');
+    progressText.textContent = `Stopped at ${msg.stats.done} / ${msg.stats.total} — visit timed out`;
+    progressText.classList.add('warn');
+    currentUrlEl.textContent = msg.timedOutUrl || '';
+    waitTextEl.textContent = 'The page stalled (tab closed, redirect, or crash).';
+    waitTextEl.classList.add('warn');
+    if (msg.scrapedCount > 0) {
+      updateScrapedCount(msg.scrapedCount);
+      scrapedCountEl.textContent += ' — partial run';
+      scrapedCountEl.classList.add('warn');
+    }
+
   } else if (msg.type === 'error') {
     waitTextEl.textContent = `Error: ${msg.message}`;
     stopBtn.classList.add('hidden');

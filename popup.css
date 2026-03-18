@@ -142,3 +142,4 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 .hidden { display: none !important; }
 .mono { font-family: monospace; }
+.warn { color: #b45309; }

@@ -3,6 +3,8 @@
 // State is persisted in chrome.storage.local so it survives service worker restarts.
 
 const ALARM_NEXT_VISIT = 'next_visit';
+const ALARM_WATCHDOG   = 'visit_watchdog';
+const WATCHDOG_MINUTES = 8; // max time allowed for a single page visit before we consider it stalled
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -80,6 +82,10 @@ async function visitNext() {
   // Navigate
   await chrome.tabs.update(tabId, { url, active: false });
 
+  // Arm the watchdog — if behavior_complete isn't received within WATCHDOG_MINUTES,
+  // the visit is considered stalled (tab closed, redirect, crash, etc.)
+  await chrome.alarms.create(ALARM_WATCHDOG, { delayInMinutes: WATCHDOG_MINUTES });
+
   // Wait for page load then inject behavior script
   chrome.tabs.onUpdated.addListener(async function listener(updatedTabId, info) {
     if (updatedTabId !== tabId || info.status !== 'complete') return;
@@ -95,6 +101,7 @@ async function visitNext() {
     } catch (err) {
       // Content script may not be ready (non-profile page, etc.) — move on
       console.warn('[LPV] Could not send message to content script:', err.message);
+      await chrome.alarms.clear(ALARM_WATCHDOG);
       await scheduleNext(state);
     }
   });
@@ -127,9 +134,30 @@ async function scheduleNext(stateSnapshot) {
 }
 
 async function finish(completed) {
+  await chrome.alarms.clear(ALARM_WATCHDOG);
   await setState({ running: false, current: null });
   notifyPopup({ type: completed ? 'complete' : 'stopped' });
   console.log('[LPV] Finished.');
+}
+
+async function handleWatchdog() {
+  const state = await getState();
+  if (!state.running) return; // already stopped by another path
+
+  console.warn('[LPV] Watchdog fired — stall detected on:', state.current);
+
+  await chrome.alarms.clear(ALARM_NEXT_VISIT);
+  await setState({ running: false, current: null });
+
+  const stored = await chrome.storage.local.get('scrapedProfiles');
+  const scrapedCount = (stored.scrapedProfiles || []).length;
+
+  notifyPopup({
+    type:        'watchdog_fail',
+    timedOutUrl: state.current,
+    stats:       state.stats,
+    scrapedCount,
+  });
 }
 
 // ── Message bus ───────────────────────────────────────────────────────────────
@@ -140,10 +168,12 @@ function notifyPopup(msg) {
 
 // ── Event listeners ───────────────────────────────────────────────────────────
 
-// Alarm fires → visit next URL
+// Alarm fires → visit next URL, or watchdog triggers a stall stop
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM_NEXT_VISIT) {
     await visitNext();
+  } else if (alarm.name === ALARM_WATCHDOG) {
+    await handleWatchdog();
   }
 });
 
@@ -165,11 +195,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     } else if (msg.type === 'stop') {
       await chrome.alarms.clear(ALARM_NEXT_VISIT);
+      await chrome.alarms.clear(ALARM_WATCHDOG);
       await setState({ running: false });
       notifyPopup({ type: 'stopped' });
       sendResponse({ ok: true });
 
     } else if (msg.type === 'behavior_complete') {
+      // Disarm the watchdog — visit completed normally
+      await chrome.alarms.clear(ALARM_WATCHDOG);
+
       // Content script finished (with optional scraped data)
       const state = await getState();
 
