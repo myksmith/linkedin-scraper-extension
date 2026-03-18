@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkedIn Profile Visitor</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <h1>LinkedIn Profile Visitor</h1>
+
+  <!-- File upload -->
+  <section id="upload-section">
+    <label for="file-input" class="file-label">
+      <span id="file-label-text">Choose a .txt file with URLs</span>
+      <input type="file" id="file-input" accept=".txt,.csv,text/plain" />
+    </label>
+    <p id="url-count" class="hint"></p>
+  </section>
+
+  <!-- Settings -->
+  <section id="settings-section" class="hidden">
+    <div class="setting-row">
+      <label>Min wait between visits</label>
+      <div class="input-unit">
+        <input type="number" id="min-wait" value="45" min="10" max="600" />
+        <span>sec</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <label>Max wait between visits</label>
+      <div class="input-unit">
+        <input type="number" id="max-wait" value="180" min="10" max="600" />
+        <span>sec</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Controls -->
+  <section id="controls">
+    <button id="start-btn" disabled>Start Visiting</button>
+    <button id="stop-btn" class="hidden danger">Stop</button>
+  </section>
+
+  <!-- Status -->
+  <section id="status-section" class="hidden">
+    <div id="progress-bar-wrap">
+      <div id="progress-bar"></div>
+    </div>
+    <p id="progress-text" class="hint"></p>
+    <p id="current-url" class="mono truncate"></p>
+    <p id="wait-text" class="hint"></p>
+  </section>
+
+  <!-- URL preview list -->
+  <section id="url-list-section" class="hidden">
+    <p class="list-header">URLs to visit <span id="list-count"></span></p>
+    <ul id="url-list"></ul>
+  </section>
+
+  <script src="popup.js"></script>
+</body>
+</html>
