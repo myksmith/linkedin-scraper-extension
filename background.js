@@ -12,6 +12,45 @@ function randomBetween(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// ── Badge helpers ─────────────────────────────────────────────────────────────
+
+// Format the running badge text: "3/20", or just "12" when total > 99.
+function badgeText(stats) {
+  if (!stats || stats.total === 0) return '…';
+  return stats.total > 99 ? String(stats.done) : `${stats.done}/${stats.total}`;
+}
+
+async function updateBadge(type, stats) {
+  switch (type) {
+    case 'running':
+      await chrome.action.setBadgeBackgroundColor({ color: '#0a66c2' });
+      await chrome.action.setBadgeText({ text: badgeText(stats) });
+      break;
+    case 'error':
+      await chrome.action.setBadgeBackgroundColor({ color: '#b91c1c' });
+      await chrome.action.setBadgeText({ text: '!' });
+      break;
+    case 'download':
+      await chrome.action.setBadgeBackgroundColor({ color: '#15803d' });
+      await chrome.action.setBadgeText({ text: '\u2193' }); // ↓
+      break;
+    default: // idle
+      await chrome.action.setBadgeText({ text: '' });
+  }
+  // White badge text (Chrome 111+)
+  chrome.action.setBadgeTextColor?.({ color: '#ffffff' });
+}
+
+// Set badge to reflect whatever state is currently persisted.
+async function restoreBadge() {
+  const state  = await getState();
+  const stored = await chrome.storage.local.get('scrapedProfiles');
+  const hasData = (stored.scrapedProfiles || []).length > 0;
+  if (state.running)   await updateBadge('running', state.stats);
+  else if (hasData)    await updateBadge('download');
+  else                 await updateBadge('idle');
+}
+
 // Returns a delay in milliseconds weighted toward the middle of [minSec, maxSec].
 function humanDelay(minSec, maxSec) {
   // Average of two uniform samples → bell-ish distribution
@@ -68,6 +107,7 @@ async function visitNext() {
   await setState({ queue: rest, current: url });
 
   notifyPopup({ type: 'status', current: url, stats: state.stats });
+  await updateBadge('running', state.stats);
 
   let tabId;
   try {
@@ -122,6 +162,8 @@ async function scheduleNext(stateSnapshot) {
     return;
   }
 
+  await updateBadge('running', newStats);
+
   // Inter-visit delay: 45 s – 3 min, human-weighted
   const delaySec = humanDelay(45, 180) / 1000;
   const delayMs  = delaySec * 1000;
@@ -138,6 +180,7 @@ async function finish(completed) {
   await setState({ running: false, current: null });
   notifyPopup({ type: completed ? 'complete' : 'stopped' });
   console.log('[LPV] Finished.');
+  await restoreBadge(); // shows ↓ if profiles exist, else clears
 }
 
 async function handleWatchdog() {
@@ -148,6 +191,7 @@ async function handleWatchdog() {
 
   await chrome.alarms.clear(ALARM_NEXT_VISIT);
   await setState({ running: false, current: null });
+  await updateBadge('error');
 
   const stored = await chrome.storage.local.get('scrapedProfiles');
   const scrapedCount = (stored.scrapedProfiles || []).length;
@@ -183,13 +227,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'start') {
       const { urls } = msg;
       await setState({
-        queue:          urls,
-        visited:        [],
-        current:        null,
-        running:        true,
-        stats:          { done: 0, total: urls.length },
+        queue:           urls,
+        visited:         [],
+        current:         null,
+        running:         true,
+        stats:           { done: 0, total: urls.length },
         scrapedProfiles: [],
       });
+      await updateBadge('running', { done: 0, total: urls.length });
       await visitNext();
       sendResponse({ ok: true });
 
@@ -198,6 +243,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await chrome.alarms.clear(ALARM_WATCHDOG);
       await setState({ running: false });
       notifyPopup({ type: 'stopped' });
+      await restoreBadge(); // shows ↓ if profiles exist, else clears
       sendResponse({ ok: true });
 
     } else if (msg.type === 'behavior_complete') {
@@ -229,3 +275,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   })();
   return true; // keep message channel open for async response
 });
+
+// Restore badge on service worker startup (browser restart, extension reload, etc.)
+restoreBadge();

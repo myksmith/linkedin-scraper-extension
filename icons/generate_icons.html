@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Icon Generator — LinkedIn Profile Visitor</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 32px; background: #f5f5f5; }
+    h1   { font-size: 1.1rem; margin-bottom: 24px; }
+    .row { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .label { width: 80px; font-size: 0.85rem; color: #555; }
+    canvas { border: 1px solid #ddd; border-radius: 4px; image-rendering: pixelated; }
+    a.dl {
+      display: inline-block; padding: 6px 14px;
+      background: #0a66c2; color: #fff; text-decoration: none;
+      border-radius: 6px; font-size: 0.8rem;
+    }
+    p.note { font-size: 0.82rem; color: #666; max-width: 480px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>LinkedIn Profile Visitor — Icon Generator</h1>
+  <p class="note">
+    Click each download link, save the file as shown, and place it in the
+    <code>icons/</code> folder of the extension. Then reload the extension in
+    <code>chrome://extensions</code>.
+  </p>
+
+  <div id="output"></div>
+
+  <script>
+    // ── Icon drawing ─────────────────────────────────────────────────────────
+
+    function drawIcon(ctx, size) {
+      const s = size;
+
+      // Rounded-square background
+      const r = s * 0.2;
+      ctx.fillStyle = '#0a66c2';
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(s - r, 0);
+      ctx.quadraticCurveTo(s, 0, s, r);
+      ctx.lineTo(s, s - r);
+      ctx.quadraticCurveTo(s, s, s - r, s);
+      ctx.lineTo(r, s);
+      ctx.quadraticCurveTo(0, s, 0, s - r);
+      ctx.lineTo(0, r);
+      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      // White person silhouette
+      ctx.fillStyle = '#ffffff';
+
+      // Head — circle in upper half
+      const headR  = s * 0.175;
+      const headCx = s * 0.5;
+      const headCy = s * 0.34;
+      ctx.beginPath();
+      ctx.arc(headCx, headCy, headR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Shoulders — top half of a wide, shallow ellipse
+      // Centered below the icon so only the dome is visible
+      const rx = s * 0.36;
+      const ry = s * 0.26;
+      const cy = s * 0.84;
+      ctx.beginPath();
+      ctx.ellipse(s * 0.5, cy, rx, ry, 0, Math.PI, 0, true);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // ── Render each size ─────────────────────────────────────────────────────
+
+    const sizes = [16, 32, 48, 128];
+    const container = document.getElementById('output');
+
+    sizes.forEach(size => {
+      const canvas    = document.createElement('canvas');
+      canvas.width    = size;
+      canvas.height   = size;
+      canvas.style.width  = Math.max(size, 48) + 'px';
+      canvas.style.height = Math.max(size, 48) + 'px';
+
+      const ctx = canvas.getContext('2d');
+      drawIcon(ctx, size);
+
+      const filename = `icon${size}.png`;
+      const a        = document.createElement('a');
+      a.className    = 'dl';
+      a.textContent  = `Download ${filename}`;
+      a.download     = filename;
+      a.href         = canvas.toDataURL('image/png');
+
+      const row        = document.createElement('div');
+      row.className    = 'row';
+      const lbl        = document.createElement('div');
+      lbl.className    = 'label';
+      lbl.textContent  = `${size} × ${size}`;
+
+      row.appendChild(lbl);
+      row.appendChild(canvas);
+      row.appendChild(a);
+      container.appendChild(row);
+    });
+  </script>
+</body>
+</html>
