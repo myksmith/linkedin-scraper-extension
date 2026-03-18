@@ -30,6 +30,9 @@ const urlListEl       = document.getElementById('url-list');
 const listCountEl     = document.getElementById('list-count');
 const minWaitEl       = document.getElementById('min-wait');
 const maxWaitEl       = document.getElementById('max-wait');
+const downloadSection = document.getElementById('download-section');
+const downloadBtn     = document.getElementById('download-btn');
+const scrapedCountEl  = document.getElementById('scraped-count');
 
 let parsedUrls = [];
 
@@ -160,6 +163,9 @@ chrome.runtime.onMessage.addListener((msg) => {
       if (data.stats) progressText.textContent = `${data.stats.done} / ${data.stats.total} visited`;
     });
 
+  } else if (msg.type === 'profile_scraped') {
+    updateScrapedCount(msg.count);
+
   } else if (msg.type === 'complete') {
     progressBar.style.width = '100%';
     progressText.textContent = 'All done!';
@@ -182,10 +188,72 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
+// ── CSV generation & download ─────────────────────────────────────────────────
+
+function generateCSV(profiles) {
+  const headers = [
+    'profile_url', 'scraped_at', 'about',
+    'company_name', 'company_url', 'title', 'location', 'description',
+  ];
+
+  // Wrap value in quotes, escaping internal quotes and collapsing newlines
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+
+  const rows = [headers.map(esc).join(',')];
+
+  for (const p of profiles) {
+    if (p.currentPositions && p.currentPositions.length > 0) {
+      for (const pos of p.currentPositions) {
+        rows.push([
+          p.url, p.scrapedAt, p.about,
+          pos.company, pos.companyUrl, pos.title, pos.location, pos.description,
+        ].map(esc).join(','));
+      }
+    } else {
+      // Profile visited but no current positions found — still record the about
+      rows.push([p.url, p.scrapedAt, p.about, '', '', '', '', ''].map(esc).join(','));
+    }
+  }
+
+  return rows.join('\r\n');
+}
+
+function triggerCSVDownload(profiles) {
+  const csv  = generateCSV(profiles);
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `linkedin_profiles_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+downloadBtn.addEventListener('click', async () => {
+  const profiles = await chrome.runtime.sendMessage({ type: 'get_profiles' });
+  if (!profiles || profiles.length === 0) return;
+  triggerCSVDownload(profiles);
+});
+
+function updateScrapedCount(count) {
+  if (count > 0) {
+    downloadSection.classList.remove('hidden');
+    scrapedCountEl.textContent = `${count} profile${count !== 1 ? 's' : ''} scraped`;
+    downloadBtn.disabled = false;
+  }
+}
+
 // ── Restore state when popup reopens ─────────────────────────────────────────
 
 (async () => {
   const state = await chrome.runtime.sendMessage({ type: 'get_state' });
+
+  // Always restore download button if there's prior data
+  if (state) {
+    const stored = await chrome.storage.local.get('scrapedProfiles');
+    updateScrapedCount((stored.scrapedProfiles || []).length);
+  }
+
   if (!state || !state.running) return;
 
   // A session is in progress — show live status

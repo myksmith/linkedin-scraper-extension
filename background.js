@@ -153,11 +153,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'start') {
       const { urls } = msg;
       await setState({
-        queue:   urls,
-        visited: [],
-        current: null,
-        running: true,
-        stats:   { done: 0, total: urls.length },
+        queue:          urls,
+        visited:        [],
+        current:        null,
+        running:        true,
+        stats:          { done: 0, total: urls.length },
+        scrapedProfiles: [],
       });
       await visitNext();
       sendResponse({ ok: true });
@@ -169,14 +170,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ ok: true });
 
     } else if (msg.type === 'behavior_complete') {
-      // Content script finished scrolling the current page
+      // Content script finished (with optional scraped data)
       const state = await getState();
+
+      if (msg.data && !msg.skipped) {
+        const stored = await chrome.storage.local.get('scrapedProfiles');
+        const profiles = stored.scrapedProfiles || [];
+        profiles.push(msg.data);
+        await chrome.storage.local.set({ scrapedProfiles: profiles });
+        notifyPopup({ type: 'profile_scraped', count: profiles.length });
+      }
+
       await scheduleNext(state);
       sendResponse({ ok: true });
 
     } else if (msg.type === 'get_state') {
       const state = await getState();
       sendResponse(state);
+
+    } else if (msg.type === 'get_profiles') {
+      const stored = await chrome.storage.local.get('scrapedProfiles');
+      sendResponse(stored.scrapedProfiles || []);
     }
   })();
   return true; // keep message channel open for async response

@@ -123,5 +123,22 @@ button:disabled { opacity: 0.4; cursor: default; }
 #url-list li.visited { color: #999; text-decoration: line-through; }
 #url-list li.active { background: #f0f7ff; color: #0a66c2; font-weight: 500; }
 
+/* ── Download ── */
+.download-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+#download-btn {
+  width: auto;
+  padding: 7px 14px;
+  background: #057642;
+  color: #fff;
+  flex-shrink: 0;
+}
+#download-btn:hover { background: #045230; }
+#download-btn:disabled { opacity: 0.4; }
+
 .hidden { display: none !important; }
 .mono { font-family: monospace; }
