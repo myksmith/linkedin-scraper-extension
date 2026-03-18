@@ -79,6 +79,17 @@ async function setState(patch) {
 
 // ── Tab management ────────────────────────────────────────────────────────────
 
+// Pin the visitor tab so it's visually distinct and harder to accidentally close.
+async function markTab(tabId) {
+  try { await chrome.tabs.update(tabId, { pinned: true }); } catch (_) {}
+}
+
+// Unpin and restore the tab to normal when the run ends.
+async function unmarkTab(tabId) {
+  if (!tabId) return;
+  try { await chrome.tabs.update(tabId, { pinned: false }); } catch (_) {}
+}
+
 async function getOrCreateTab(existingTabId) {
   // Try to reuse the existing tab
   if (existingTabId) {
@@ -118,6 +129,8 @@ async function visitNext() {
     notifyPopup({ type: 'error', message: 'Could not open tab. Is a LinkedIn tab available?' });
     return;
   }
+
+  await markTab(tabId);
 
   // Navigate
   await chrome.tabs.update(tabId, { url, active: false });
@@ -177,7 +190,9 @@ async function scheduleNext(stateSnapshot) {
 
 async function finish(completed) {
   await chrome.alarms.clear(ALARM_WATCHDOG);
+  const { tabId } = await getState();
   await setState({ running: false, current: null });
+  await unmarkTab(tabId);
   notifyPopup({ type: completed ? 'complete' : 'stopped' });
   console.log('[LPV] Finished.');
   await restoreBadge(); // shows ↓ if profiles exist, else clears
@@ -241,7 +256,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     } else if (msg.type === 'stop') {
       await chrome.alarms.clear(ALARM_NEXT_VISIT);
       await chrome.alarms.clear(ALARM_WATCHDOG);
+      const { tabId } = await getState();
       await setState({ running: false });
+      await unmarkTab(tabId);
       notifyPopup({ type: 'stopped' });
       await restoreBadge(); // shows ↓ if profiles exist, else clears
       sendResponse({ ok: true });

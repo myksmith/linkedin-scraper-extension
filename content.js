@@ -2,6 +2,37 @@
 // On profile pages: scrapes About + current Experience while doing human-like scrolling.
 // On non-profile pages: skips immediately.
 
+// ── Running banner ────────────────────────────────────────────────────────────
+// Shown immediately on every page load while a scraping run is active.
+// Tells the user not to close the tab and that unusual behavior is intentional.
+(async () => {
+  const { running } = await chrome.storage.local.get('running');
+  if (!running) return;
+
+  document.title = '\u2699 LPV \u2014 keep open';
+
+  const bar = document.createElement('div');
+  bar.id = 'lpv-notice';
+  bar.style.cssText = [
+    'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:2147483647',
+    'background:#0a66c2', 'color:#fff',
+    'padding:7px 16px',
+    'font:600 12px/1.4 system-ui,sans-serif',
+    'display:flex', 'align-items:center', 'gap:10px',
+    'box-shadow:0 2px 8px rgba(0,0,0,.3)',
+    'pointer-events:none',           // let clicks pass through to the page
+  ].join(';');
+  bar.innerHTML =
+    '<span style="font-size:15px">\u2699</span>' +
+    '<span>LinkedIn Profile Visitor is running \u2014 ' +
+    'this tab is being automated. Scrolling and clicks are intentional. ' +
+    '<strong>Do not close this tab.</strong></span>';
+
+  const attach = () => { if (!document.getElementById('lpv-notice')) document.body.prepend(bar); };
+  if (document.body) attach();
+  else document.addEventListener('DOMContentLoaded', attach);
+})();
+
 (function () {
   'use strict';
 
